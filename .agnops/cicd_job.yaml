@@ -1,0 +1,25 @@
+workflow:
+  branchFilters:
+    - master
+  containers:
+    - container:
+      addOns:
+        isDocker: true
+      kubernetes:
+        envFrom:
+          - secretRef:
+              name: docker-registry-creds
+      name: docker
+      image: docker:18.09.9
+      command: |
+        echo "$DOCKERHUBPASS" | docker login --username $DOCKERHUBUSER --password-stdin
+        docker build -t agnops/webhook-manager:latest .
+        docker tag agnops/webhook-manager:latest agnops/webhook-manager:$COMMITID
+        docker push agnops/webhook-manager:latest && docker push agnops/webhook-manager:$COMMITID
+    - container:
+      name: helm-kubectl
+      image: agnops/helm-kubectl:latest
+      command: |
+        #helm upgrade --install webhook-manager-github chart/webhook-manager --set nodeSelector."nodegroup-type"=cicd-workloads --set provider=github --set image.tag=$COMMITID --namespace ci-cd-tools --wait
+        #helm upgrade --install webhook-manager-gitlab chart/webhook-manager --set nodeSelector."nodegroup-type"=cicd-workloads --set provider=gitlab --set image.tag=$COMMITID --namespace ci-cd-tools --wait
+        kubectl set image deployment/aws-webhook-manager webhook-manager=agnops/webhook-manager:$COMMITID -n ci-cd-tools
